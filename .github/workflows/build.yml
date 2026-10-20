@@ -1,6 +1,8 @@
 name: Build
 on:
   push:
+    branches:
+      - main
     paths:
       - 'Plain Craft Launcher 2/**'
       - '.github/workflows/**'
@@ -10,13 +12,18 @@ on:
       - '.github/workflows/**'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build
     runs-on: windows-latest
-    strategy:  
-       matrix:  
+    strategy:
+       matrix:
          configuration: [Debug, Release]
+    outputs:
+      describe: ${{ steps.describe.outputs.value }}
 
     steps:
 
@@ -27,16 +34,18 @@ jobs:
         submodules: true
 
     - name: Set Describe
+      id: describe
       shell: bash
       run: |
           describe=`git describe --tags --always`
           echo "describe=$describe" >> $GITHUB_ENV
+          echo "value=$describe" >> $GITHUB_OUTPUT
 
     - name: Setup MSBuild.exe
       uses: microsoft/setup-msbuild@v3
       with:
         msbuild-architecture: x64
-    
+
     - name: Update Help
       run:  |
         Set-Location ..
@@ -55,7 +64,7 @@ jobs:
         (gc "Plain Craft Launcher 2\Modules\ModSecret.vb") -replace 'Public OAuthClientId As String = If(Environment.GetEnvironmentVariable("PCL_MS_CLIENT_ID"), "")', 'Public OAuthClientId As String = If(Environment.GetEnvironmentVariable("PCL_MS_CLIENT_ID"), "${{ secrets.CLIENT_ID }}")' | Out-File "Plain Craft Launcher 2\Modules\ModSecret.vb"
         (gc "Plain Craft Launcher 2\Modules\ModSecret.vb") -replace 'Public CurseForgeAPIKey As String = If(Environment.GetEnvironmentVariable("PCL_CURSEFORGE_API_KEY"), "")', 'Public CurseForgeAPIKey As String = If(Environment.GetEnvironmentVariable("PCL_CURSEFORGE_API_KEY"), "${{ secrets.CURSEFORGE_API_KEY }}")' | Out-File "Plain Craft Launcher 2\Modules\ModSecret.vb"
         (gc "Plain Craft Launcher 2\Modules\Base\ModBase.vb") -replace 'Public Const CommitHash As String = ""', 'Public Const CommitHash As String = "${{ github.sha }}"' | Out-File "Plain Craft Launcher 2\Modules\Base\ModBase.vb"
-        
+
     - name: Restore NuGet Packages
       run: dotnet restore PCLCS\PCLCS.csproj
 
@@ -67,3 +76,53 @@ jobs:
       with:
         name: ${{ matrix.configuration }} ${{ env.describe }}
         path: Plain Craft Launcher 2\obj\${{ matrix.configuration }}\Plain Craft Launcher 2.exe
+
+  release:
+    name: Release
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+
+    - name: Read Version
+      id: version
+      run: |
+        version=$(sed -n 's/.*VersionBaseName As String = "\([^"]*\)".*/\1/p' "Plain Craft Launcher 2/Modules/Base/ModBase.vb")
+        echo "value=$version" >> "$GITHUB_OUTPUT"
+
+    - name: Download Release Build
+      uses: actions/download-artifact@v8
+      with:
+        name: Release ${{ needs.build.outputs.describe }}
+        path: dist
+
+    - name: Prepare Asset
+      run: |
+        cd dist
+        mv "Plain Craft Launcher 2.exe" "PCL-${{ steps.version.outputs.value }}-build${{ github.run_number }}.exe"
+
+    - name: Create Release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        cat > notes.md <<'EOF'
+        基于 2.14.0.0 源码构建，不包含 2.99.0.0 的 MC 下载限制。
+        开源版本不含远程配置、更新通知与强制更新机制。
+
+        - 版本：${{ steps.version.outputs.value }}
+        - 提交：${{ github.sha }}
+        - 构建号：${{ github.run_number }}
+        - 运行记录：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        EOF
+        gh release create "v${{ steps.version.outputs.value }}-build${{ github.run_number }}" \
+          --repo "${{ github.repository }}" \
+          --target "${{ github.sha }}" \
+          --title "PCL ${{ steps.version.outputs.value }} 构建 ${{ github.run_number }}" \
+          --notes-file notes.md \
+          dist/*.exe
