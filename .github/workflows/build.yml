@@ -61,9 +61,17 @@ jobs:
 
     - name: Replace
       run: |
-        (gc "Plain Craft Launcher 2\Modules\ModSecret.vb") -replace 'Public OAuthClientId As String = If(Environment.GetEnvironmentVariable("PCL_MS_CLIENT_ID"), "")', 'Public OAuthClientId As String = If(Environment.GetEnvironmentVariable("PCL_MS_CLIENT_ID"), "${{ secrets.CLIENT_ID }}")' | Out-File "Plain Craft Launcher 2\Modules\ModSecret.vb"
-        (gc "Plain Craft Launcher 2\Modules\ModSecret.vb") -replace 'Public CurseForgeAPIKey As String = If(Environment.GetEnvironmentVariable("PCL_CURSEFORGE_API_KEY"), "")', 'Public CurseForgeAPIKey As String = If(Environment.GetEnvironmentVariable("PCL_CURSEFORGE_API_KEY"), "${{ secrets.CURSEFORGE_API_KEY }}")' | Out-File "Plain Craft Launcher 2\Modules\ModSecret.vb"
-        (gc "Plain Craft Launcher 2\Modules\Base\ModBase.vb") -replace 'Public Const CommitHash As String = ""', 'Public Const CommitHash As String = "${{ github.sha }}"' | Out-File "Plain Craft Launcher 2\Modules\Base\ModBase.vb"
+        $f = "Plain Craft Launcher 2\Modules\ModSecret.vb"
+        $t = Get-Content $f -Raw
+        $t = $t.Replace('Public OAuthClientId As String = If(Environment.GetEnvironmentVariable("PCL_MS_CLIENT_ID"), "")', 'Public OAuthClientId As String = If(Environment.GetEnvironmentVariable("PCL_MS_CLIENT_ID"), "${{ secrets.CLIENT_ID }}")')
+        $t = $t.Replace('Public CurseForgeAPIKey As String = If(Environment.GetEnvironmentVariable("PCL_CURSEFORGE_API_KEY"), "")', 'Public CurseForgeAPIKey As String = If(Environment.GetEnvironmentVariable("PCL_CURSEFORGE_API_KEY"), "${{ secrets.CURSEFORGE_API_KEY }}")')
+        if ('${{ secrets.CLIENT_ID }}' -ne '' -and $t.Contains('GetEnvironmentVariable("PCL_MS_CLIENT_ID"), "")')) { throw "CLIENT_ID 注入失败" }
+        if ('${{ secrets.CURSEFORGE_API_KEY }}' -ne '' -and $t.Contains('GetEnvironmentVariable("PCL_CURSEFORGE_API_KEY"), "")')) { throw "CURSEFORGE_API_KEY 注入失败" }
+        Set-Content -Path $f -Value $t -NoNewline
+        $b = "Plain Craft Launcher 2\Modules\Base\ModBase.vb"
+        $u = Get-Content $b -Raw
+        $u = $u.Replace('Public Const CommitHash As String = ""', 'Public Const CommitHash As String = "${{ github.sha }}"')
+        Set-Content -Path $b -Value $u -NoNewline
 
     - name: Restore NuGet Packages
       run: dotnet restore PCLCS\PCLCS.csproj
