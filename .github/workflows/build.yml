@@ -105,24 +105,30 @@ jobs:
     - name: Prepare Asset
       run: |
         cd dist
-        mv "Plain Craft Launcher 2.exe" "PCL-${{ steps.version.outputs.value }}-build${{ github.run_number }}.exe"
+        mv "Plain Craft Launcher 2.exe" "PCL-${{ steps.version.outputs.value }}-mod-build${{ github.run_number }}.exe"
 
     - name: Create Release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         cat > notes.md <<'EOF'
-        基于 2.14.0.0 源码构建，不包含 2.99.0.0 的 MC 下载限制。
-        开源版本不含远程配置、更新通知与强制更新机制。
+        本构建是第三方基于 PCL ${{ steps.version.outputs.value }} 源代码独立进行的二次创作，与 PCL 官方无关。
+
+        原作者：龙腾猫跃（Plain Craft Launcher 的开发者）
+        原项目：https://github.com/Meloong-Git/PCL
+        赞助原作者：https://meloong.com/afd/a/LTCat
+        本修改版源代码：${{ github.server_url }}/${{ github.repository }}
+
+        本构建不包含 2.99.0.0 的 MC 下载限制；开源版本也不含远程配置、更新通知与强制更新机制。
 
         - 版本：${{ steps.version.outputs.value }}
         - 提交：${{ github.sha }}
         - 构建号：${{ github.run_number }}
         - 运行记录：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         EOF
-        gh release create "v${{ steps.version.outputs.value }}-build${{ github.run_number }}" \
+        gh release create "pcl-${{ steps.version.outputs.value }}-mod-build${{ github.run_number }}" \
           --repo "${{ github.repository }}" \
           --target "${{ github.sha }}" \
-          --title "PCL ${{ steps.version.outputs.value }} 构建 ${{ github.run_number }}" \
+          --title "PCL ${{ steps.version.outputs.value }} 第三方修改版（构建 ${{ github.run_number }}）" \
           --notes-file notes.md \
           dist/*.exe

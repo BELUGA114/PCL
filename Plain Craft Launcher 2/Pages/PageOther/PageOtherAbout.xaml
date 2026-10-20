@@ -6,7 +6,7 @@
     PanScroll="PanBack" RenderOptions.BitmapScalingMode="LowQuality">
     <local:MyScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" x:Name="PanBack">
         <StackPanel x:Name="PanMain" Margin="25,10" Grid.IsSharedSizeScope="True">
-            <local:MyCard Margin="0,15" Title="关于">
+            <local:MyCard Margin="0,15" Title="关于（第三方修改版）">
                 <Grid Margin="21,40,21,16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="45" />
